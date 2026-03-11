@@ -698,7 +698,7 @@ export default function AppShell() {
                   value={forwardTargetRoomId}
                   onChange={(e) => setForwardTargetRoomId(e.target.value)}
                 >
-                  <option value=\"\">Select a room</option>
+                  <option value="">Select a room</option>
                   {rooms.map((room) => (
                     <option key={room.id} value={room.id}>
                       {room.name}
@@ -803,4 +803,3 @@ function urlBase64ToUint8Array(base64String: string) {
   }
   return outputArray;
 }
-
