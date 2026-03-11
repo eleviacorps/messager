@@ -585,7 +585,7 @@ export default function AppShell() {
                       ) : null}
                       <div className="text-[10px] text-white/50 mt-2 text-right">
                         {new Date(message.createdAt).toLocaleTimeString()}
-                        {message.isEdited ? " Â· edited" : ""}
+                        {message.isEdited ? " (edited)" : ""}
                       </div>
                     </div>
                     {reactionPickerFor === message.id ? (
@@ -668,7 +668,7 @@ export default function AppShell() {
                 </div>
               </div>
               <button className="text-white/60" onClick={() => setReplyTo(null)}>
-                âœ•
+                x
               </button>
             </div>
           ) : null}
@@ -682,10 +682,10 @@ export default function AppShell() {
                 className="text-white/60"
                 onClick={() => {
                   setEditingMessageId(null);
-                  setText(\"\");
+                  setText("");
                 }}
               >
-                âœ•
+                x
               </button>
             </div>
           ) : null}
