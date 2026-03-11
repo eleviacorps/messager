@@ -1,4 +1,4 @@
-const CACHE_NAME = "evtext-v1";
+const CACHE_NAME = "evtext-v3";
 const CORE_ASSETS = ["/", "/offline.html", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

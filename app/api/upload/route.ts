@@ -32,7 +32,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unsupported file type" }, { status: 415 });
   }
 
-  const stored = await storeFile(file);
+  let stored;
+  try {
+    stored = await storeFile(file);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Upload storage not configured" },
+      { status: 500 }
+    );
+  }
 
   const media = await prisma.media.create({
     data: {

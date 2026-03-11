@@ -20,6 +20,11 @@ export async function GET(
   });
 
   return NextResponse.json({
-    members: members.map((m) => ({ id: m.user.id, name: m.user.name, role: m.role }))
+    members: members.map((m) => ({
+      id: m.user.id,
+      name: m.user.name,
+      role: m.role,
+      avatarColor: m.user.avatarColor
+    }))
   });
 }

@@ -9,6 +9,7 @@ export async function GET() {
 
   const rooms = await prisma.room.findMany({
     where: { members: { some: { userId: user.id } } },
+    include: { members: { include: { user: true } } },
     orderBy: { createdAt: "desc" }
   });
 
@@ -32,13 +33,15 @@ export async function POST(request: Request) {
   const room = await prisma.room.create({
     data: {
       name,
+      isDirect: false,
       members: {
         create: {
           userId: user.id,
           role: "owner"
         }
       }
-    }
+    },
+    include: { members: { include: { user: true } } }
   });
 
   return NextResponse.json({ room });

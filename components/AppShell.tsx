@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type Room = {
   id: string;
   name: string;
+  isDirect?: boolean;
+  members?: RoomMember[];
   createdAt: string;
 };
 
@@ -26,7 +28,7 @@ type Reaction = {
 type MessageRef = {
   id: string;
   text: string | null;
-  user: { id: string; name: string };
+  user: { id: string; name: string; avatarColor?: string };
   media: Media[];
 };
 
@@ -38,21 +40,31 @@ type Message = {
   isEdited?: boolean;
   replyTo?: MessageRef | null;
   forwardedFrom?: MessageRef | null;
-  user: { id: string; name: string };
+  user: { id: string; name: string; avatarColor?: string };
   media: Media[];
   reactions: Reaction[];
+};
+
+type RoomMember = {
+  id: string;
+  user: { id: string; name: string; avatarColor?: string };
+  role: string;
 };
 
 type Member = {
   id: string;
   name: string;
   role: string;
+  avatarColor?: string;
 };
 
 export default function AppShell() {
   const reactionOptions = ["👍", "😂", "❤️", "🔥", "🎉", "😮"];
+  const avatarColors = ["#4f7cff", "#ff8a5b", "#6dd3b0", "#caa3ff", "#f4c95d", "#6aa9ff"];
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<{ id: string; name: string } | null>(null);
+  const [user, setUser] = useState<{ id: string; name: string; avatarColor?: string } | null>(
+    null
+  );
   const [rooms, setRooms] = useState<Room[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -70,6 +82,7 @@ export default function AppShell() {
   const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
   const [forwardTargetRoomId, setForwardTargetRoomId] = useState<string>("");
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const activeRoom = useMemo(
@@ -260,7 +273,11 @@ export default function AppShell() {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        alert(err?.error || "Upload failed");
+        continue;
+      }
       const data = await res.json();
       mediaIds.push(data.media.id);
     }
@@ -337,6 +354,49 @@ export default function AppShell() {
     });
     setForwardingMessage(null);
     setForwardTargetRoomId("");
+  };
+
+  const startDirectMessage = async (targetUserId: string) => {
+    const res = await fetch("/api/dm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: targetUserId })
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    setRooms((prev) => {
+      const exists = prev.find((room) => room.id === data.room.id);
+      if (exists) return prev;
+      return [data.room, ...prev];
+    });
+    setActiveRoomId(data.room.id);
+  };
+
+  const updateAvatar = async (color: string) => {
+    const res = await fetch("/api/me", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ avatarColor: color })
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    setUser(data.user);
+    setMembers((prev) =>
+      prev.map((m) => (m.id === data.user.id ? { ...m, avatarColor: color } : m))
+    );
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.user.id === data.user.id
+          ? { ...m, user: { ...m.user, avatarColor: color } }
+          : m
+      )
+    );
+  };
+
+  const roomLabel = (room: Room) => {
+    if (!room.isDirect) return room.name;
+    const other = room.members?.find((m) => m.user.id !== user?.id);
+    return other?.user.name || "Direct message";
   };
 
   const enableNotifications = async () => {
@@ -433,7 +493,36 @@ export default function AppShell() {
       <aside className="w-72 bg-panel border-r border-white/5 flex flex-col">
         <div className="p-5 border-b border-white/5">
           <div className="text-xl font-semibold">EVText</div>
-          <div className="text-white/60 text-sm">Signed in as {user.name}</div>
+          <div className="mt-4 flex items-center gap-3">
+            <div
+              className="h-12 w-12 rounded-full flex items-center justify-center text-lg font-semibold text-black"
+              style={{ backgroundColor: user.avatarColor || "#4f7cff" }}
+            >
+              {user.name.slice(0, 1).toUpperCase()}
+            </div>
+            <div>
+              <div className="text-white/60 text-sm">Signed in as</div>
+              <div className="font-semibold">{user.name}</div>
+              <button
+                className="text-xs text-accent mt-1"
+                onClick={() => setShowAvatarPicker((prev) => !prev)}
+              >
+                {showAvatarPicker ? "Close" : "Change avatar"}
+              </button>
+            </div>
+          </div>
+          {showAvatarPicker ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {avatarColors.map((color) => (
+                <button
+                  key={color}
+                  className="h-7 w-7 rounded-full border border-white/10"
+                  style={{ backgroundColor: color }}
+                  onClick={() => updateAvatar(color)}
+                />
+              ))}
+            </div>
+          ) : null}
           <div className="mt-3 flex gap-2">
             <button
               className="rounded-lg px-3 py-1 text-sm bg-white/10"
@@ -465,7 +554,10 @@ export default function AppShell() {
                   window.location.hash = `room=${room.id}`;
                 }}
               >
-                {room.name}
+                <div className="flex items-center justify-between">
+                  <span>{roomLabel(room)}</span>
+                  {room.isDirect ? <span className="text-xs opacity-70">DM</span> : null}
+                </div>
               </button>
             ))}
           </div>
@@ -504,9 +596,23 @@ export default function AppShell() {
           <div className="flex items-center gap-3">
             <div className="flex flex-wrap gap-2">
               {members.map((member) => (
-                <span key={member.id} className="badge px-2 py-1 rounded-full text-xs">
-                  {member.name}
-                </span>
+                <div key={member.id} className="flex items-center gap-2 badge px-2 py-1 rounded-full text-xs">
+                  <span
+                    className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] text-black"
+                    style={{ backgroundColor: member.avatarColor || "#4f7cff" }}
+                  >
+                    {member.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span>{member.name}</span>
+                  {member.id !== user?.id ? (
+                    <button
+                      className="text-[10px] text-accent"
+                      onClick={() => startDirectMessage(member.id)}
+                    >
+                      DM
+                    </button>
+                  ) : null}
+                </div>
               ))}
             </div>
             <button
@@ -536,7 +642,10 @@ export default function AppShell() {
                 className={`group flex ${isMine ? "justify-end" : "justify-start"}`}
               >
                 <div className={`flex items-end gap-3 ${isMine ? "flex-row-reverse" : ""}`}>
-                  <div className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center text-sm">
+                  <div
+                    className="h-9 w-9 rounded-full flex items-center justify-center text-sm text-black"
+                    style={{ backgroundColor: message.user.avatarColor || "#4f7cff" }}
+                  >
                     {message.user.name.slice(0, 1).toUpperCase()}
                   </div>
                   <div className="max-w-[72%]">
@@ -574,7 +683,7 @@ export default function AppShell() {
                         </button>
                       ) : null}
                       {message.text ? (
-                        <p className="text-white/90 whitespace-pre-wrap">{message.text}</p>
+                        <p className="text-white/90 whitespace-pre-wrap break-words">{message.text}</p>
                       ) : null}
                       {message.media?.length ? (
                         <div className="mt-3 grid gap-3">

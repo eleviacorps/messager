@@ -33,9 +33,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const user = await prisma.user.create({
-      data: { name }
-    });
+  const palette = ["#4f7cff", "#ff8a5b", "#6dd3b0", "#caa3ff", "#f4c95d", "#6aa9ff"];
+  const index = name
+    .split("")
+    .reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % palette.length;
+
+  const user = await prisma.user.create({
+    data: { name, avatarColor: palette[index] }
+  });
 
     await createSession(user.id);
 

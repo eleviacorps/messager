@@ -8,6 +8,7 @@ const SESSION_TTL_DAYS = 7;
 export type SessionUser = {
   id: string;
   name: string;
+  avatarColor: string;
 };
 
 export async function getSessionUser(): Promise<SessionUser | null> {
@@ -25,7 +26,11 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     return null;
   }
 
-  return { id: session.user.id, name: session.user.name };
+  return {
+    id: session.user.id,
+    name: session.user.name,
+    avatarColor: session.user.avatarColor
+  };
 }
 
 export async function requireSessionUser() {

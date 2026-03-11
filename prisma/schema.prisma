@@ -12,6 +12,7 @@ datasource db {
 model User {
   id        String             @id @default(cuid())
   name      String
+  avatarColor String           @default("#4f7cff")
   createdAt DateTime           @default(now())
   sessions  Session[]
   memberships RoomMember[]
@@ -31,6 +32,8 @@ model Session {
 model Room {
   id        String       @id @default(cuid())
   name      String
+  isDirect  Boolean      @default(false)
+  directKey String?      @unique
   createdAt DateTime     @default(now())
   members   RoomMember[]
   messages  Message[]
