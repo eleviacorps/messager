@@ -17,6 +17,7 @@ model User {
   memberships RoomMember[]
   messages  Message[]
   pushSubscriptions PushSubscription[]
+  reactions MessageReaction[]
 }
 
 model Session {
@@ -55,11 +56,32 @@ model Message {
   userId    String
   text      String?
   createdAt DateTime @default(now())
+  replyToMessageId String?
+  isEdited  Boolean  @default(false)
+  forwardedFromMessageId String?
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   media     Media[]
+  replyTo   Message? @relation("MessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageReplies")
+  forwardedFrom Message? @relation("MessageForwards", fields: [forwardedFromMessageId], references: [id], onDelete: SetNull)
+  forwards  Message[] @relation("MessageForwards")
+  reactions MessageReaction[]
 
   @@index([roomId, createdAt])
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
 }
 
 model Media {

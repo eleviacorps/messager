@@ -20,7 +20,13 @@ export async function GET(
 
   const messages = await prisma.message.findMany({
     where: { roomId: params.roomId },
-    include: { user: true, media: true },
+    include: {
+      user: true,
+      media: true,
+      replyTo: { include: { user: true, media: true } },
+      forwardedFrom: { include: { user: true, media: true } },
+      reactions: true
+    },
     orderBy: { createdAt: "desc" },
     take: 50
   });
@@ -50,9 +56,19 @@ export async function POST(
   const textRaw = body?.text ? String(body.text) : "";
   const text = textRaw ? sanitizeMessage(textRaw) : null;
   const mediaIds: string[] = Array.isArray(body?.mediaIds) ? body.mediaIds : [];
+  const replyToMessageId = body?.replyToMessageId ? String(body.replyToMessageId) : null;
 
   if (!text && mediaIds.length === 0) {
     return NextResponse.json({ error: "Empty message" }, { status: 400 });
+  }
+
+  if (replyToMessageId) {
+    const replyTarget = await prisma.message.findFirst({
+      where: { id: replyToMessageId, roomId: params.roomId }
+    });
+    if (!replyTarget) {
+      return NextResponse.json({ error: "Invalid reply target" }, { status: 400 });
+    }
   }
 
   const message = await prisma.message.create({
@@ -60,13 +76,20 @@ export async function POST(
       roomId: params.roomId,
       userId: user.id,
       text,
+      replyToMessageId: replyToMessageId || undefined,
       media: mediaIds.length
         ? {
             connect: mediaIds.map((id) => ({ id }))
           }
         : undefined
     },
-    include: { user: true, media: true }
+    include: {
+      user: true,
+      media: true,
+      replyTo: { include: { user: true, media: true } },
+      forwardedFrom: { include: { user: true, media: true } },
+      reactions: true
+    }
   });
 
   broadcast(params.roomId, { type: "message", message });

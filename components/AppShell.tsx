@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -17,13 +17,30 @@ type Media = {
   size: number;
 };
 
+type Reaction = {
+  id: string;
+  userId: string;
+  emoji: string;
+};
+
+type MessageRef = {
+  id: string;
+  text: string | null;
+  user: { id: string; name: string };
+  media: Media[];
+};
+
 type Message = {
   id: string;
   roomId: string;
   text: string | null;
   createdAt: string;
+  isEdited?: boolean;
+  replyTo?: MessageRef | null;
+  forwardedFrom?: MessageRef | null;
   user: { id: string; name: string };
   media: Media[];
+  reactions: Reaction[];
 };
 
 type Member = {
@@ -33,6 +50,7 @@ type Member = {
 };
 
 export default function AppShell() {
+  const reactionOptions = ["👍", "😂", "❤️", "🔥", "🎉", "😮"];
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ id: string; name: string } | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -47,6 +65,11 @@ export default function AppShell() {
   const [loginPassword, setLoginPassword] = useState("");
   const [roomName, setRoomName] = useState("");
   const [joinCode, setJoinCode] = useState("");
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
+  const [forwardTargetRoomId, setForwardTargetRoomId] = useState<string>("");
+  const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const activeRoom = useMemo(
@@ -70,6 +93,10 @@ export default function AppShell() {
 
   useEffect(() => {
     if (!activeRoomId) return;
+    setReplyTo(null);
+    setEditingMessageId(null);
+    setForwardingMessage(null);
+    setForwardTargetRoomId("");
     loadMessages(activeRoomId);
     loadMembers(activeRoomId);
 
@@ -79,6 +106,10 @@ export default function AppShell() {
         const payload = JSON.parse(event.data);
         if (payload?.type === "message") {
           appendMessage(payload.message);
+        } else if (payload?.type === "message:update") {
+          updateMessage(payload.message);
+        } else if (payload?.type === "reaction:update") {
+          updateReactions(payload.messageId, payload.reactions || []);
         }
       } catch {
         // ignore
@@ -133,7 +164,9 @@ export default function AppShell() {
 
   const appendMessage = (message: Message) => {
     setMessages((prev) => {
-      if (prev.some((m) => m.id === message.id)) return prev;
+      if (prev.some((m) => m.id === message.id)) {
+        return prev.map((m) => (m.id === message.id ? message : m));
+      }
       return [...prev, message];
     });
 
@@ -154,6 +187,16 @@ export default function AppShell() {
         window.location.hash = `room=${message.roomId}`;
       };
     }
+  };
+
+  const updateMessage = (message: Message) => {
+    setMessages((prev) => prev.map((m) => (m.id === message.id ? message : m)));
+  };
+
+  const updateReactions = (messageId: string, reactions: Reaction[]) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, reactions } : m))
+    );
   };
 
   const handleLogin = async () => {
@@ -233,9 +276,24 @@ export default function AppShell() {
     if (!activeRoomId) return;
     const content = (overrideText ?? text).trim();
     if (!content && mediaIds.length === 0) return;
+    if (editingMessageId) {
+      const res = await fetch(`/api/messages/${editingMessageId}/edit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: content })
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      updateMessage(data.message);
+      setEditingMessageId(null);
+      setText("");
+      return;
+    }
+
     const payload = {
       text: content,
-      mediaIds
+      mediaIds,
+      replyToMessageId: replyTo?.id || null
     };
 
     const res = await fetch(`/api/rooms/${activeRoomId}/messages`, {
@@ -248,6 +306,37 @@ export default function AppShell() {
     const data = await res.json();
     appendMessage(data.message);
     setText("");
+    setReplyTo(null);
+  };
+
+  const toggleReaction = async (messageId: string, emoji: string) => {
+    await fetch(`/api/messages/${messageId}/reactions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emoji })
+    });
+  };
+
+  const startReply = (message: Message) => {
+    setReplyTo(message);
+    setEditingMessageId(null);
+  };
+
+  const startEdit = (message: Message) => {
+    if (message.user.id !== user?.id) return;
+    setEditingMessageId(message.id);
+    setReplyTo(null);
+    setText(message.text || "");
+  };
+
+  const forwardMessage = async (message: Message, targetRoomId: string) => {
+    await fetch(`/api/messages/${message.id}/forward`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetRoomId })
+    });
+    setForwardingMessage(null);
+    setForwardTargetRoomId("");
   };
 
   const enableNotifications = async () => {
@@ -271,6 +360,31 @@ export default function AppShell() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sub)
       });
+    }
+  };
+
+  const getReactionSummary = (message: Message) => {
+    const summary = new Map<string, { count: number; me: boolean }>();
+    message.reactions?.forEach((reaction) => {
+      const current = summary.get(reaction.emoji) || { count: 0, me: false };
+      summary.set(reaction.emoji, {
+        count: current.count + 1,
+        me: current.me || reaction.userId === user?.id
+      });
+    });
+    return Array.from(summary.entries()).map(([emoji, data]) => ({
+      emoji,
+      count: data.count,
+      me: data.me
+    }));
+  };
+
+  const scrollToMessage = (messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-1", "ring-accent");
+      setTimeout(() => el.classList.remove("ring-1", "ring-accent"), 1200);
     }
   };
 
@@ -412,34 +526,211 @@ export default function AppShell() {
             if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files);
           }}
         >
-          {messages.map((message) => (
-            <div key={message.id} className="bg-white/5 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="font-semibold">{message.user.name}</div>
-                <div className="text-xs text-white/50">
-                  {new Date(message.createdAt).toLocaleTimeString()}
+          {messages.map((message) => {
+            const isMine = message.user.id === user?.id;
+            const reactions = getReactionSummary(message);
+            return (
+              <div
+                key={message.id}
+                id={`msg-${message.id}`}
+                className={`group flex ${isMine ? "justify-end" : "justify-start"}`}
+              >
+                <div className={`flex items-end gap-3 ${isMine ? "flex-row-reverse" : ""}`}>
+                  <div className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center text-sm">
+                    {message.user.name.slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="max-w-[72%]">
+                    <div
+                      className={`rounded-2xl px-4 py-3 ${
+                        isMine ? "bg-neutral-800" : "bg-neutral-700/70"
+                      }`}
+                      onClick={() =>
+                        setReactionPickerFor(
+                          reactionPickerFor === message.id ? null : message.id
+                        )
+                      }
+                    >
+                      {!isMine ? (
+                        <div className="text-xs text-white/60 mb-1">{message.user.name}</div>
+                      ) : null}
+                      {message.forwardedFrom ? (
+                        <div className="text-[11px] text-white/50 mb-2">Forwarded message</div>
+                      ) : null}
+                      {message.replyTo ? (
+                        <button
+                          className="w-full text-left border-l-2 border-accent/50 pl-2 mb-2 text-xs text-white/70"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            scrollToMessage(message.replyTo!.id);
+                          }}
+                        >
+                          <div className="font-semibold">{message.replyTo.user.name}</div>
+                          <div className="truncate">
+                            {message.replyTo.text ||
+                              (message.replyTo.media?.[0]
+                                ? `[${message.replyTo.media[0].type}]`
+                                : "Attachment")}
+                          </div>
+                        </button>
+                      ) : null}
+                      {message.text ? (
+                        <p className="text-white/90 whitespace-pre-wrap">{message.text}</p>
+                      ) : null}
+                      {message.media?.length ? (
+                        <div className="mt-3 grid gap-3">
+                          {message.media.map((media) => (
+                            <MediaPreview key={media.id} media={media} />
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="text-[10px] text-white/50 mt-2 text-right">
+                        {new Date(message.createdAt).toLocaleTimeString()}
+                        {message.isEdited ? " Â· edited" : ""}
+                      </div>
+                    </div>
+                    {reactionPickerFor === message.id ? (
+                      <div className="mt-2 flex gap-2 flex-wrap">
+                        {reactionOptions.map((emoji) => (
+                          <button
+                            key={emoji}
+                            className="px-2 py-1 rounded-full bg-white/10 text-sm"
+                            onClick={() => {
+                              toggleReaction(message.id, emoji);
+                              setReactionPickerFor(null);
+                            }}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {reactions.length ? (
+                      <div className={`mt-2 flex gap-2 flex-wrap ${isMine ? "justify-end" : ""}`}>
+                        {reactions.map((reaction) => (
+                          <button
+                            key={reaction.emoji}
+                            className={`px-2 py-1 rounded-full text-xs ${
+                              reaction.me ? "bg-accent text-black" : "bg-white/10 text-white/70"
+                            }`}
+                            onClick={() => toggleReaction(message.id, reaction.emoji)}
+                          >
+                            {reaction.emoji} {reaction.count}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div
+                      className={`mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition ${
+                        isMine ? "justify-end" : ""
+                      }`}
+                    >
+                      <button
+                        className="text-xs text-white/70"
+                        onClick={() =>
+                          setReactionPickerFor(
+                            reactionPickerFor === message.id ? null : message.id
+                          )
+                        }
+                      >
+                        React
+                      </button>
+                      <button className="text-xs text-white/70" onClick={() => startReply(message)}>
+                        Reply
+                      </button>
+                      {isMine ? (
+                        <button className="text-xs text-white/70" onClick={() => startEdit(message)}>
+                          Edit
+                        </button>
+                      ) : null}
+                      <button
+                        className="text-xs text-white/70"
+                        onClick={() => setForwardingMessage(message)}
+                      >
+                        Forward
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-              {message.text ? (
-                <p className="text-white/90 whitespace-pre-wrap">{message.text}</p>
-              ) : null}
-              {message.media?.length ? (
-                <div className="mt-3 grid gap-3">
-                  {message.media.map((media) => (
-                    <MediaPreview key={media.id} media={media} />
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ))}
+            );
+          })}
           <div ref={messagesEndRef} />
         </section>
 
         <div className="border-t border-white/5 bg-panel px-6 py-4">
+          {replyTo && !editingMessageId ? (
+            <div className="mb-3 flex items-center justify-between rounded-lg bg-white/10 px-3 py-2 text-sm">
+              <div>
+                <div className="text-white/60 text-xs">Replying to {replyTo.user.name}</div>
+                <div className="text-white/80">
+                  {replyTo.text ||
+                    (replyTo.media?.[0] ? `[${replyTo.media[0].type}]` : "Attachment")}
+                </div>
+              </div>
+              <button className="text-white/60" onClick={() => setReplyTo(null)}>
+                âœ•
+              </button>
+            </div>
+          ) : null}
+          {editingMessageId ? (
+            <div className="mb-3 flex items-center justify-between rounded-lg bg-white/10 px-3 py-2 text-sm">
+              <div>
+                <div className="text-white/60 text-xs">Editing message</div>
+                <div className="text-white/80 truncate">{text}</div>
+              </div>
+              <button
+                className="text-white/60"
+                onClick={() => {
+                  setEditingMessageId(null);
+                  setText(\"\");
+                }}
+              >
+                âœ•
+              </button>
+            </div>
+          ) : null}
+          {forwardingMessage ? (
+            <div className="mb-3 rounded-lg bg-white/10 px-3 py-2 text-sm space-y-2">
+              <div className="text-white/60 text-xs">Forward to:</div>
+              <div className="flex gap-2 items-center">
+                <select
+                  className="input-dark rounded-lg px-3 py-2 flex-1"
+                  value={forwardTargetRoomId}
+                  onChange={(e) => setForwardTargetRoomId(e.target.value)}
+                >
+                  <option value=\"\">Select a room</option>
+                  {rooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="rounded-lg bg-accent text-black px-3 py-2"
+                  disabled={!forwardTargetRoomId}
+                  onClick={() => forwardMessage(forwardingMessage, forwardTargetRoomId)}
+                >
+                  Send
+                </button>
+                <button
+                  className="rounded-lg bg-white/10 px-3 py-2"
+                  onClick={() => setForwardingMessage(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
           <div className="flex items-center gap-3">
             <input
               className="input-dark flex-1 rounded-lg px-4 py-3"
-              placeholder={uploading ? "Uploading..." : "Type a message"}
+              placeholder={
+                uploading
+                  ? "Uploading..."
+                  : editingMessageId
+                    ? "Edit message"
+                    : "Type a message"
+              }
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -512,3 +803,4 @@ function urlBase64ToUint8Array(base64String: string) {
   }
   return outputArray;
 }
+

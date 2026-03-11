@@ -6,3 +6,4 @@ public/uploads/*
 !public/uploads/.gitkeep
 dev.log
 dev.err
+prisma/schema.postgres.prev.prisma
