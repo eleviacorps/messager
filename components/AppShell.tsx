@@ -489,7 +489,7 @@ export default function AppShell() {
   }
 
   return (
-    <div className="min-h-screen gradient-bg flex">
+    <div className="h-screen gradient-bg flex overflow-hidden">
       <aside className="w-72 bg-panel border-r border-white/5 flex flex-col">
         <div className="p-5 border-b border-white/5">
           <div className="text-xl font-semibold">EVText</div>
@@ -587,7 +587,7 @@ export default function AppShell() {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col min-h-0">
         <header className="border-b border-white/5 bg-panel/90 backdrop-blur px-6 py-4 flex items-center justify-between">
           <div>
             <div className="text-lg font-semibold">{activeRoom?.name || "Select a room"}</div>
@@ -625,7 +625,7 @@ export default function AppShell() {
         </header>
 
         <section
-          className="flex-1 overflow-y-auto scrollbar px-6 py-6 space-y-4"
+          className="flex-1 overflow-y-auto scrollbar px-6 py-6 space-y-4 min-h-0"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
