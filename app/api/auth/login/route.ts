@@ -1,0 +1,39 @@
+﻿import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { createSession, getClientIp } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
+
+export async function POST(request: Request) {
+  const ip = getClientIp();
+  const limit = rateLimit(`login:${ip}`, 20, 60_000);
+  if (!limit.ok) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  const body = await request.json().catch(() => null);
+  if (!body?.name || !body?.password) {
+    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  }
+
+  const sharedPassword = process.env.APP_SHARED_PASSWORD;
+  if (!sharedPassword) {
+    return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+  }
+
+  if (body.password !== sharedPassword) {
+    return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+  }
+
+  const name = String(body.name).trim().slice(0, 48);
+  if (!name) {
+    return NextResponse.json({ error: "Invalid name" }, { status: 400 });
+  }
+
+  const user = await prisma.user.create({
+    data: { name }
+  });
+
+  await createSession(user.id);
+
+  return NextResponse.json({ user: { id: user.id, name: user.name } });
+}
