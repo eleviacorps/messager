@@ -489,7 +489,7 @@ export default function AppShell() {
   }
 
   return (
-    <div className="h-screen gradient-bg flex overflow-hidden">
+    <div className="app-root gradient-bg flex overflow-hidden">
       <aside className="w-72 bg-panel border-r border-white/5 flex flex-col">
         <div className="p-5 border-b border-white/5">
           <div className="text-xl font-semibold">EVText</div>

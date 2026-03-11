@@ -21,6 +21,16 @@ body {
   overflow: hidden;
 }
 
+.app-root {
+  height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  .app-root {
+    height: 100dvh;
+  }
+}
+
 .gradient-bg {
   background:
     radial-gradient(circle at 20% 20%, rgba(79, 124, 255, 0.18), transparent 50%),
