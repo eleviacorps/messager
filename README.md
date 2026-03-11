@@ -71,6 +71,7 @@ Optional Prisma schema override:
 - `DIRECT_URL` (optional, for Postgres migrations)
 - `PRISMA_MIGRATE` (set to `1` to run `prisma migrate deploy` during build)
 - `PRISMA_DB_PUSH` (set to `1` to run `prisma db push` during build)
+- `PRISMA_DB_PUSH_ACCEPT_DATA_LOSS` (set to `1` to allow db push schema changes)
 
 ## Folder Structure
 - `app/` Next.js app router pages + API routes

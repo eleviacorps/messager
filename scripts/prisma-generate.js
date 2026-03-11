@@ -1,4 +1,4 @@
-const { execSync } = require("child_process");
+﻿const { execSync } = require("child_process");
 const path = require("path");
 
 const schemaPath = process.env.PRISMA_SCHEMA || path.join("prisma", "schema.prisma");
@@ -19,8 +19,14 @@ if (shouldMigrate) {
 
 const shouldPush = ["1", "true", "yes"].includes((process.env.PRISMA_DB_PUSH || "").toLowerCase());
 if (shouldPush) {
-  console.log("[prisma] running db push");
-  run(`npx prisma db push --schema="${normalized}"`);
+  const accept = ["1", "true", "yes"].includes(
+    (process.env.PRISMA_DB_PUSH_ACCEPT_DATA_LOSS || "").toLowerCase()
+  );
+  console.log("[prisma] running db push" + (accept ? " (accept data loss)" : ""));
+  const cmd = accept
+    ? `npx prisma db push --accept-data-loss --schema="${normalized}"`
+    : `npx prisma db push --schema="${normalized}"`;
+  run(cmd);
 } else {
   console.log("[prisma] db push skipped");
 }
