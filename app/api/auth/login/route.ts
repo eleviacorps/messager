@@ -16,6 +16,9 @@ export async function POST(request: Request) {
   }
 
   const sharedPassword = process.env.APP_SHARED_PASSWORD;
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Database not configured" }, { status: 500 });
+  }
   if (!sharedPassword) {
     return NextResponse.json({ error: "Server not configured" }, { status: 500 });
   }

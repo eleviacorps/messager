@@ -1,0 +1,101 @@
+// Prisma schema for EVText (PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String             @id @default(cuid())
+  name      String
+  createdAt DateTime           @default(now())
+  sessions  Session[]
+  memberships RoomMember[]
+  messages  Message[]
+  pushSubscriptions PushSubscription[]
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+model Room {
+  id        String       @id @default(cuid())
+  name      String
+  createdAt DateTime     @default(now())
+  members   RoomMember[]
+  messages  Message[]
+  invites   Invite[]
+}
+
+model RoomMember {
+  id        String   @id @default(cuid())
+  userId    String
+  roomId    String
+  role      String   @default("member")
+  joinedAt  DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId])
+  @@index([roomId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  text      String?
+  createdAt DateTime @default(now())
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  media     Media[]
+
+  @@index([roomId, createdAt])
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  messageId String?
+  url       String
+  type      String
+  mime      String
+  size      Int
+  name      String
+  createdAt DateTime @default(now())
+  message   Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([messageId])
+}
+
+model Invite {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  roomId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime?
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+}

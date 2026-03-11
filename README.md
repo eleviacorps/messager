@@ -66,6 +66,10 @@ Uploads in production (optional):
 Optional base URL for invites:
 - `NEXT_PUBLIC_APP_URL`
 
+Optional Prisma schema override:
+- `PRISMA_SCHEMA` (e.g. `prisma/schema.postgres.prisma` on Vercel)
+- `DIRECT_URL` (optional, for Postgres migrations)
+
 ## Folder Structure
 - `app/` Next.js app router pages + API routes
 - `components/` UI components
@@ -91,12 +95,12 @@ Main models:
 3. Add env vars in Vercel project settings:
    - `APP_SHARED_PASSWORD`
    - `DATABASE_URL` (Postgres connection string)
+   - `PRISMA_SCHEMA=prisma/schema.postgres.prisma`
+   - `DIRECT_URL` (optional)
    - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
    - `BLOB_READ_WRITE_TOKEN` (if using Vercel Blob)
-4. Update Prisma schema provider for production:
-   - Change `provider = "sqlite"` to `provider = "postgresql"` in `prisma/schema.prisma`.
-5. Run migrations in Vercel build:
-   - Add `npx prisma generate` and `npx prisma migrate deploy` to build commands if needed.
+4. Run migrations in Vercel build or manually:
+   - `npx prisma migrate deploy --schema prisma/schema.postgres.prisma`
 
 ## PWA Installation
 - Open the site in Chrome/Edge.
