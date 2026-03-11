@@ -69,6 +69,7 @@ Optional base URL for invites:
 Optional Prisma schema override:
 - `PRISMA_SCHEMA` (e.g. `prisma/schema.postgres.prisma` on Vercel)
 - `DIRECT_URL` (optional, for Postgres migrations)
+- `PRISMA_DB_PUSH` (set to `1` to auto-create tables during build)
 
 ## Folder Structure
 - `app/` Next.js app router pages + API routes
@@ -97,6 +98,7 @@ Main models:
    - `DATABASE_URL` (Postgres connection string)
    - `PRISMA_SCHEMA=prisma/schema.postgres.prisma`
    - `DIRECT_URL` (optional)
+   - `PRISMA_DB_PUSH=1` (first deploy to create tables)
    - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
    - `BLOB_READ_WRITE_TOKEN` (if using Vercel Blob)
 4. Run migrations in Vercel build or manually:

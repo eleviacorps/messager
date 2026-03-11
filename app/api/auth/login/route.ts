@@ -32,11 +32,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid name" }, { status: 400 });
   }
 
-  const user = await prisma.user.create({
-    data: { name }
-  });
+  try {
+    const user = await prisma.user.create({
+      data: { name }
+    });
 
-  await createSession(user.id);
+    await createSession(user.id);
 
-  return NextResponse.json({ user: { id: user.id, name: user.name } });
+    return NextResponse.json({ user: { id: user.id, name: user.name } });
+  } catch (error) {
+    console.error("Login failed", error);
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
+  }
 }
